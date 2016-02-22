@@ -19,19 +19,13 @@ class Seomatic_MetaModel extends BaseElementModel
             'seoTitle'          => array(AttributeType::String, 'default' => ''),
             'seoDescription'    => array(AttributeType::String, 'default' => ''),
             'seoKeywords'       => array(AttributeType::String, 'default' => ''),
-            'twitterCardType'	=> array(AttributeType::String, 'default' => 'summary'),
-            'openGraphType'		=> array(AttributeType::String, 'default' => 'website'),
+            'twitterCardType'	=> array(AttributeType::String, 'default' => ''),
+            'openGraphType'		=> array(AttributeType::String, 'default' => ''),
             'robots'			=> array(AttributeType::String, 'default' => ''),
             'seoImageId'        => array(AttributeType::Number, 'default' => 0),
         ));
     }
 
-/*
-	public function getContentTable()
-	{
-	     return 'seomatic_meta';
-	}
-*/	
     /**
      * Returns whether the current user can edit the element.
      *
@@ -51,6 +45,36 @@ class Seomatic_MetaModel extends BaseElementModel
     {
         $locale = (craft()->isLocalized() && $this->locale != craft()->language) ? '/' . $this->locale : '';
         return UrlHelper::getCpUrl('seomatic/' . 'meta' . '/' . $this->id . $locale);
+    }
+
+    /**
+     * Returns the seoTitle
+     *
+     * @return string
+     */
+    public function seoTitle()
+    {
+        return $this->seoTitle;
+    }
+
+    /**
+     * Returns the seoDescription
+     *
+     * @return string
+     */
+    public function seoDescription()
+    {
+        return $this->seoDescription;
+    }
+
+    /**
+     * Returns the seoKeywords
+     *
+     * @return string
+     */
+    public function seoKeywords()
+    {
+        return $this->seoKeywords;
     }
 
 } /* -- class Seomatic_MetaModel */

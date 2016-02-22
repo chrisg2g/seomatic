@@ -26,19 +26,29 @@ class Seomatic_SettingsModel extends BaseModel
             'siteOpenGraphType'                 => array(AttributeType::String, 'default' => 'website'),
             'siteSeoImageId'                    => array(AttributeType::Number, 'default' => null),
             'siteRobots'                        => array(AttributeType::String, 'default' => ''),
+            'siteRobotsTxt'                     => array(AttributeType::Mixed, 'default' => $this->getDefaultRobots()),
 
 /* --------------------------------------------------------------------------------
     IDENTITY settings
 -------------------------------------------------------------------------------- */
 
             'googleSiteVerification'            => array(AttributeType::String, 'default' => ''),
-            'siteOwnerType'                     => array(AttributeType::String, 'default' => 'corporation'),
+            'googleAnalyticsUID'                => array(AttributeType::String, 'default' => ''),
+            'googleAnalyticsSendPageview'       => array(AttributeType::Bool, 'default' => true),
+            'googleAnalyticsAdvertising'        => array(AttributeType::Bool, 'default' => false),
+            'googleAnalyticsEcommerce'          => array(AttributeType::Bool, 'default' => false),
+            'googleAnalyticsEEcommerce'         => array(AttributeType::Bool, 'default' => false),
+            'googleAnalyticsLinkAttribution'    => array(AttributeType::Bool, 'default' => false),
+            'googleAnalyticsLinker'             => array(AttributeType::Bool, 'default' => false),
+            'siteOwnerType'                     => array(AttributeType::String, 'default' => 'Organization'),
+            'siteOwnerSubType'                  => array(AttributeType::String, 'default' => 'Corporation'),
+            'siteOwnerSpecificType'             => array(AttributeType::String, 'default' => ''),
 
 /* -- Generic owner fields */
 
             'genericOwnerName'                  => array(AttributeType::String, 'default' => craft()->getSiteName()),
             'genericOwnerAlternateName'         => array(AttributeType::String, 'default' => ''),
-            'genericOwnerDescription'           => array(AttributeType::String, 'default' => ''),
+            'genericOwnerDescription'           => array(AttributeType::String, 'maxLength' => 1024, 'default' => ''),
             'genericOwnerUrl'                   => array(AttributeType::String, 'default' => craft()->getSiteUrl()),
             'genericOwnerImageId'               => array(AttributeType::String, 'default' => ''),
             'genericOwnerTelephone'             => array(AttributeType::String, 'default' => ''),
@@ -58,6 +68,10 @@ class Seomatic_SettingsModel extends BaseModel
             'organizationOwnerFoundingDate'     => array(AttributeType::String, 'default' => ''),
             'organizationOwnerFoundingLocation' => array(AttributeType::String, 'default' => ''),
 
+/* -- LocalBusiness owner fields https://schema.org/LocalBusiness */
+
+            'localBusinessOwnerOpeningHours'    => array(AttributeType::Mixed, 'default' => ''),
+
 /* -- Corporation owner fields http://schema.org/Corporation */
 
             'corporationOwnerTickerSymbol'      => array(AttributeType::String, 'default' => ''),
@@ -65,6 +79,8 @@ class Seomatic_SettingsModel extends BaseModel
 /* -- Restaurant owner fields https://schema.org/Restaurant */
 
             'restaurantOwnerServesCuisine'      => array(AttributeType::String, 'default' => ''),
+            'restaurantOwnerMenuUrl'            => array(AttributeType::String, 'default' => ''),
+            'restaurantOwnerReservationsUrl'    => array(AttributeType::String, 'default' => ''),
 
 /* -- Person owner fields https://schema.org/Person */
 
@@ -81,20 +97,24 @@ class Seomatic_SettingsModel extends BaseModel
             'linkedInHandle'                    => array(AttributeType::String, 'default' => ''),
             'googlePlusHandle'                  => array(AttributeType::String, 'default' => ''),
             'youtubeHandle'                     => array(AttributeType::String, 'default' => ''),
+            'youtubeChannelHandle'              => array(AttributeType::String, 'default' => ''),
             'instagramHandle'                   => array(AttributeType::String, 'default' => ''),
             'pinterestHandle'                   => array(AttributeType::String, 'default' => ''),
+            'githubHandle'                      => array(AttributeType::String, 'default' => ''),
 
 /* --------------------------------------------------------------------------------
     CEATOR settings
 -------------------------------------------------------------------------------- */
 
-            'siteCreatorType'                   => array(AttributeType::String, 'default' => 'corporation'),
+            'siteCreatorType'                   => array(AttributeType::String, 'default' => 'Organization'),
+            'siteCreatorSubType'                => array(AttributeType::String, 'default' => 'Corporation'),
+            'siteCreatorSpecificType'           => array(AttributeType::String, 'default' => ''),
 
 /* -- Generic Creator fields */
 
             'genericCreatorName'                => array(AttributeType::String, 'default' => ''),
             'genericCreatorAlternateName'       => array(AttributeType::String, 'default' => ''),
-            'genericCreatorDescription'         => array(AttributeType::String, 'default' => ''),
+            'genericCreatorDescription'         => array(AttributeType::String, 'maxLength' => 1024, 'default' => ''),
             'genericCreatorUrl'                 => array(AttributeType::String, 'default' => ''),
             'genericCreatorImageId'             => array(AttributeType::String, 'default' => ''),
             'genericCreatorTelephone'           => array(AttributeType::String, 'default' => ''),
@@ -114,6 +134,10 @@ class Seomatic_SettingsModel extends BaseModel
             'organizationCreatorFoundingDate'   => array(AttributeType::String, 'default' => ''),
             'organizationCreatorFoundingLocation'   => array(AttributeType::String, 'default' => ''),
 
+/* -- LocalBusiness Creator fields https://schema.org/LocalBusiness */
+
+            'localBusinessCreatorOpeningHours'  => array(AttributeType::Mixed, 'default' => ''),
+
 /* -- Corporation Creator fields http://schema.org/Corporation */
 
             'corporationCreatorTickerSymbol'    => array(AttributeType::String, 'default' => ''),
@@ -121,6 +145,8 @@ class Seomatic_SettingsModel extends BaseModel
 /* -- Restaurant Creator fields https://schema.org/Restaurant */
 
             'restaurantCreatorServesCuisine'    => array(AttributeType::String, 'default' => ''),
+            'restaurantCreatorSMenuUrl'         => array(AttributeType::String, 'default' => ''),
+            'restaurantCreatorSReservationsUrl' => array(AttributeType::String, 'default' => ''),
 
 /* -- Person Creator fields https://schema.org/Person */
 
@@ -148,9 +174,31 @@ class Seomatic_SettingsModel extends BaseModel
         $templateName = '_humansDefault';
         $loader = new TemplateLoader;
         $template = $loader->getSource($templateName);
-        
+
         craft()->path->setTemplatesPath($oldPath);
-        
+
         return $template;
     } /* -- _getDefaultHumans */
+
+/* --------------------------------------------------------------------------------
+    Get the default robots.txt template
+-------------------------------------------------------------------------------- */
+
+    public function getDefaultRobots()
+    {
+        $oldPath = craft()->path->getTemplatesPath();
+        $newPath = craft()->path->getPluginsPath().'seomatic/templates';
+        craft()->path->setTemplatesPath($newPath);
+
+/* -- Return the robots.txt default template */
+
+        $templateName = '_robotsDefault';
+        $loader = new TemplateLoader;
+        $template = $loader->getSource($templateName);
+
+        craft()->path->setTemplatesPath($oldPath);
+
+        return $template;
+    } /* -- _getDefaultRobots */
+
 } /* -- class Seomatic_SettingsModel */

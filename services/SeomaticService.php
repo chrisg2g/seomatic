@@ -59,7 +59,7 @@ class SeomaticService extends BaseApplicationComponent
 
         if ($templatePath)
             {
-            $htmlText = craft()->templates->render($templatePath);
+            $htmlText = craft()->templates->render($templatePath, $metaVars);
             }
         else
             {
@@ -183,6 +183,49 @@ class SeomaticService extends BaseApplicationComponent
     } /* -- renderWebsite */
 
 /* --------------------------------------------------------------------------------
+    Render the SEOmatic Place template
+-------------------------------------------------------------------------------- */
+
+    public function renderPlace($metaVars, $locale, $isPreview=false)
+    {
+        $htmlText = "";
+        if (($metaVars['seomaticIdentity']['type'] != "Person") && (isset($metaVars['seomaticIdentity']['location'])))
+        {
+            $this->sanitizeMetaVars($metaVars);
+            $place = $metaVars['seomaticIdentity']['location'];
+            $htmlText = $this->renderJSONLD($place, $isPreview);
+        }
+        return $htmlText;
+    } /* -- renderPlace */
+
+/* --------------------------------------------------------------------------------
+    Render the Google Analytics <script> tags
+-------------------------------------------------------------------------------- */
+
+    public function renderGoogleAnalytics($metaVars, $locale, $isPreview=false)
+    {
+        $htmlText = "";
+        $shouldRenderGA = craft()->config->get("renderGoogleAnalyticsScript", "seomatic");
+        if (($shouldRenderGA) || ($isPreview))
+        {
+            $oldPath = craft()->path->getTemplatesPath();
+            $newPath = craft()->path->getPluginsPath().'seomatic/templates';
+            craft()->path->setTemplatesPath($newPath);
+
+    /* -- Render the core template */
+
+            $templateName = '_googleAnalytics';
+            if (craft()->plugins->getPlugin('Minify') && !$isPreview)
+                $htmlText = craft()->minify->jsMin($htmlText = craft()->templates->render($templateName, $metaVars));
+            else
+                $htmlText = craft()->templates->render($templateName, $metaVars);
+
+            craft()->path->setTemplatesPath($oldPath);
+        }
+        return $htmlText;
+    } /* -- renderGoogleAnalytics */
+
+/* --------------------------------------------------------------------------------
     Render the SEOmatic globals
 -------------------------------------------------------------------------------- */
 
@@ -252,6 +295,62 @@ class SeomaticService extends BaseApplicationComponent
     } /* -- renderHumansTemplate */
 
 /* --------------------------------------------------------------------------------
+    Render the robots.txt template
+-------------------------------------------------------------------------------- */
+
+    public function renderRobots($isPreview=false)
+    {
+        $templatePath = '';
+        $locale = '';
+        if (!$locale)
+            $locale = craft()->language;
+        $metaVars = craft()->seomatic->getGlobals('', $locale);
+
+        if ($templatePath)
+        {
+            $htmlText = craft()->templates->render($templatePath);
+        }
+        else
+        {
+            $oldPath = craft()->path->getTemplatesPath();
+            $newPath = craft()->path->getPluginsPath().'seomatic/templates';
+            craft()->path->setTemplatesPath($newPath);
+
+/* -- Render the core template */
+
+            $templateName = '_robots';
+            if ($isPreview)
+                $templateName = $templateName . 'Preview';
+            $htmlText = craft()->templates->render($templateName, $metaVars);
+
+            craft()->path->setTemplatesPath($oldPath);
+        }
+
+        return $htmlText;
+    } /* -- renderRobots */
+
+/* --------------------------------------------------------------------------------
+    Render the robots.txt user-defined template
+-------------------------------------------------------------------------------- */
+
+    public function renderRobotsTemplate()
+    {
+        $templatePath = '';
+        $locale = '';
+        if (!$locale)
+            $locale = craft()->language;
+        $metaVars = craft()->seomatic->getGlobals('', $locale);
+        $siteMeta = craft()->seomatic->getSiteMeta($locale);
+
+/* -- Render the user-defined robots.txt template */
+
+        $template = $siteMeta['siteRobotsTxt'];
+        $htmlText = craft()->templates->renderString($template, $metaVars);
+
+        return $htmlText;
+    } /* -- renderRobotsTemplate */
+
+/* --------------------------------------------------------------------------------
     Try to extract an seomaticMeta field from an element
 -------------------------------------------------------------------------------- */
 
@@ -261,68 +360,89 @@ class SeomaticService extends BaseApplicationComponent
 
         $entryMeta = null;
         $entryMetaUrl = "";
-        if (isset($element) && $element && $element->getElementType() == ElementType::Entry)
+        if (isset($element) && $element)
         {
-            $attributes = $element->content->attributes;
-            foreach ($attributes as $key => $value)
+            $elemType = $element->getElementType();
+            if ($elemType == ElementType::Entry ||
+                $elemType == "Commerce_Product" ||
+                $elemType == ElementType::Category)
             {
-                if (is_object($value) && property_exists($value, "elementType"))
+                $attributes = $element->content->attributes;
+                foreach ($attributes as $key => $value)
                 {
-                    if ($value->elementType == "Seomatic_FieldMeta")
+                    if (is_object($value) && property_exists($value, "elementType"))
                     {
-                        $entryMeta = $value;
-                        $entryMetaUrl = $element->url;
-
-/* -- Swap in any SEOmatic fields that are pulling from other entry fields */
-
-                        switch ($entryMeta['seoTitleSource'])
+                        if ($value->elementType == "Seomatic_FieldMeta")
                         {
-                            case 'field':
-                                if (isset($element[$entryMeta['seoTitleSourceField']]))
-                                {
-                                    $entryMeta['seoTitle'] = $this->getTextFromEntryField($element[$entryMeta['seoTitleSourceField']]);
-                                }
-                            break;
+                            $entryMeta = $value;
+                            $entryMetaUrl = $element->url;
+
+    /* -- Swap in any SEOmatic fields that are pulling from other entry fields */
+
+                            switch ($entryMeta['seoTitleSource'])
+                            {
+                                case 'field':
+                                    if (isset($element[$entryMeta['seoTitleSourceField']]))
+                                    {
+                                        $entryMeta['seoTitle'] = $this->getTextFromEntryField($element[$entryMeta['seoTitleSourceField']]);
+                                    }
+                                break;
+
+                                case 'custom':
+                                    $entryMeta['seoTitle'] = craft()->config->parseEnvironmentString($entryMeta['seoTitle']);
+                                    $entryMeta['seoTitle'] = craft()->templates->renderObjectTemplate($entryMeta['seoTitle'], $element);
+                                break;
+                            }
+
+                            switch ($entryMeta['seoDescriptionSource'])
+                            {
+                                case 'field':
+                                    if (isset($element[$entryMeta['seoDescriptionSourceField']]))
+                                    {
+                                        $entryMeta['seoDescription'] = $this->getTextFromEntryField($element[$entryMeta['seoDescriptionSourceField']]);
+                                    }
+                                break;
+
+                                case 'custom':
+                                    $entryMeta['seoDescription'] = craft()->config->parseEnvironmentString($entryMeta['seoDescription']);
+                                    $entryMeta['seoDescription'] = craft()->templates->renderObjectTemplate($entryMeta['seoDescription'], $element);
+                                break;
+                            }
+
+                            switch ($entryMeta['seoKeywordsSource'])
+                            {
+                                case 'field':
+                                    if (isset($element[$entryMeta['seoKeywordsSourceField']]))
+                                    {
+                                        $entryMeta['seoKeywords'] = $this->getTextFromEntryField($element[$entryMeta['seoKeywordsSourceField']]);
+                                    }
+                                break;
+
+                                case 'keywords':
+                                    if (isset($element[$entryMeta['seoKeywordsSourceField']]))
+                                    {
+                                        $text = $this->getTextFromEntryField($element[$entryMeta['seoKeywordsSourceField']]);
+                                        $entryMeta['seoKeywords'] = $this->extractKeywords($text);
+                                    }
+                                break;
+
+                                case 'custom':
+                                    $entryMeta['seoKeywords'] = craft()->config->parseEnvironmentString($entryMeta['seoKeywords']);
+                                    $entryMeta['seoKeywords'] = craft()->templates->renderObjectTemplate($entryMeta['seoKeywords'], $element);
+                                break;
+                            }
+
+                            switch ($entryMeta['seoImageIdSource'])
+                            {
+                                case 'field':
+                                    if (isset($element[$entryMeta['seoImageIdSourceField']]) && $element[$entryMeta['seoImageIdSourceField']]->first())
+                                    {
+                                        $entryMeta['seoImageId'] = $element[$entryMeta['seoImageIdSourceField']]->first()->id;
+                                    }
+                                break;
+                            }
+
                         }
-
-                        switch ($entryMeta['seoDescriptionSource'])
-                        {
-                            case 'field':
-                                if (isset($element[$entryMeta['seoDescriptionSourceField']]))
-                                {
-                                    $entryMeta['seoDescription'] = $this->getTextFromEntryField($element[$entryMeta['seoDescriptionSourceField']]);
-                                }
-                            break;
-                        }
-
-                        switch ($entryMeta['seoKeywordsSource'])
-                        {
-                            case 'field':
-                                if (isset($element[$entryMeta['seoKeywordsSourceField']]))
-                                {
-                                    $entryMeta['seoKeywords'] = $this->getTextFromEntryField($element[$entryMeta['seoKeywordsSourceField']]);
-                                }
-                            break;
-
-                            case 'keywords':
-                                if (isset($element[$entryMeta['seoKeywordsSourceField']]))
-                                {
-                                    $text = $this->getTextFromEntryField($element[$entryMeta['seoKeywordsSourceField']]);
-                                    $entryMeta['seoKeywords'] = $this->extractKeywords($text);
-                                }
-                            break;
-                        }
-
-                        switch ($entryMeta['seoImageIdSource'])
-                        {
-                            case 'field':
-                                if (isset($element[$entryMeta['seoImageIdSourceField']]) && $element[$entryMeta['seoImageIdSourceField']]->first())
-                                {
-                                    $entryMeta['seoImageId'] = $element[$entryMeta['seoImageIdSourceField']]->first()->id;
-                                }
-                            break;
-                        }
-
                     }
                 }
             }
@@ -467,11 +587,15 @@ class SeomaticService extends BaseApplicationComponent
 /* -- Set up the title prefix and suffix */
 
         $titlePrefix = "";
+/* -- We now do this in sanitizeMetaVars() so this can be changed in Twig just like the seoTitle
         if ($siteMeta['siteSeoTitlePlacement'] == "before")
             $titlePrefix =  $siteMeta['siteSeoName'] . " " . $siteMeta['siteSeoTitleSeparator'] . " ";
+*/
         $titleSuffix = "";
+/* -- We now do this in sanitizeMetaVars() so this can be changed in Twig just like the seoTitle
         if ($siteMeta['siteSeoTitlePlacement'] == "after")
             $titleSuffix = " " . $siteMeta['siteSeoTitleSeparator'] . " " . $siteMeta['siteSeoName'];
+*/
 
 /* -- Add in the Twitter Card settings to the meta */
 
@@ -516,8 +640,10 @@ class SeomaticService extends BaseApplicationComponent
             array_push($sameAs, $helper['googlePlusUrl']);
             array_push($sameAs, $helper['linkedInUrl']);
             array_push($sameAs, $helper['youtubeUrl']);
+            array_push($sameAs, $helper['youtubeChannelUrl']);
             array_push($sameAs, $helper['instagramUrl']);
             array_push($sameAs, $helper['pinterestUrl']);
+            array_push($sameAs, $helper['githubUrl']);
             $sameAs = array_filter($sameAs);
             $sameAs = array_values($sameAs);
             if (!empty($sameAs))
@@ -548,11 +674,13 @@ class SeomaticService extends BaseApplicationComponent
 
         $siteUrl = craft()->getSiteUrl();
         $requestUrl = craft()->request->url;
+        /*
         if (($siteUrl[strlen($siteUrl) -1] == '/') && ($requestUrl[0] == '/'))
         {
             $siteUrl = rtrim($siteUrl, '/');
         }
-        $fullUrl = $siteUrl . $requestUrl;
+        */
+        $fullUrl = $requestUrl;
 
         $meta['canonicalUrl'] = $fullUrl;
 
@@ -575,7 +703,7 @@ class SeomaticService extends BaseApplicationComponent
 /* -- Add the helper vars */
 
         $helper = array();
-        $this->addSocialHelpers($helper, $social, $identity['siteOwnerType']);
+        $this->addSocialHelpers($helper, $social, $identity);
         $this->addIdentityHelpers($helper, $identity);
         $this->addCreatorHelpers($helper, $creator);
 
@@ -586,6 +714,7 @@ class SeomaticService extends BaseApplicationComponent
         unset($siteMeta['siteSeoImageId']);
         unset($siteMeta['siteTwitterCardType']);
         unset($siteMeta['siteOpenGraphType']);
+        unset($siteMeta['siteRobotsTxt']);
 
         unset($meta['twitterCardType']);
         unset($meta['openGraphType']);
@@ -653,6 +782,11 @@ class SeomaticService extends BaseApplicationComponent
 
         if ($result['genericCreatorHumansTxt'] == "")
             $result['genericCreatorHumansTxt'] = $settings->getDefaultHumans();
+
+/* -- If our robots.txt field is empty, fill it with the default template */
+
+        if ($result['siteRobotsTxt'] == "")
+            $result['siteRobotsTxt'] = $settings->getDefaultRobots();
 
 /* -- If our siteSeoTitleSeparator &  empty, fill it with the default template */
 
@@ -803,6 +937,8 @@ class SeomaticService extends BaseApplicationComponent
         else
            $siteMeta['siteSeoImage'] = '';
 
+        $siteMeta['siteRobotsTxt'] = $settings['siteRobotsTxt'];
+
         $result = $siteMeta;
 
         $this->cachedSiteMeta[$locale] = $result;
@@ -829,7 +965,30 @@ class SeomaticService extends BaseApplicationComponent
         $identity['locale'] = $settings['locale'];
 
         $identity['googleSiteVerification'] = $settings['googleSiteVerification'];
-        $identity['siteOwnerType'] = $settings['siteOwnerType'];
+        $identity['googleAnalyticsUID'] = $settings['googleAnalyticsUID'];
+        $identity['googleAnalyticsSendPageview'] = $settings['googleAnalyticsSendPageview'];
+        $identity['googleAnalyticsAdvertising'] = $settings['googleAnalyticsAdvertising'];
+        $identity['googleAnalyticsEcommerce'] = $settings['googleAnalyticsEcommerce'];
+        $identity['googleAnalyticsEEcommerce'] = $settings['googleAnalyticsEEcommerce'];
+        $identity['googleAnalyticsLinkAttribution'] = $settings['googleAnalyticsLinkAttribution'];
+        $identity['googleAnalyticsLinker'] = $settings['googleAnalyticsLinker'];
+        $identity['siteOwnerType'] = ucfirst($settings['siteOwnerType']);
+        $identity['siteOwnerSubType'] = $settings['siteOwnerSubType'];
+        $identity['siteOwnerSpecificType'] = $settings['siteOwnerSpecificType'];
+
+/* -- Handle migrating the old way of storing siteOwnerType */
+
+        if (($identity['siteOwnerType'] != "Organization") && ($identity['siteOwnerType'] != "Person"))
+        {
+            $identity['siteOwnerSubType'] = $identity['siteOwnerType'];
+            $identity['siteOwnerType'] = "Organization";
+        }
+
+        if ($identity['siteOwnerSubType'] == "Restaurant")
+        {
+            $identity['siteOwnerSpecificType'] = $identity['siteOwnerSubType'];
+            $identity['siteOwnerSubType'] = "LocalBusiness";
+        }
 
         $identity['genericOwnerName'] = $settings['genericOwnerName'];
         $identity['genericOwnerAlternateName'] = $settings['genericOwnerAlternateName'];
@@ -859,9 +1018,47 @@ class SeomaticService extends BaseApplicationComponent
         $identity['personOwnerGender'] = $settings['personOwnerGender'];
         $identity['personOwnerBirthPlace'] = $settings['personOwnerBirthPlace'];
 
+        $identity['localBusinessOwnerOpeningHours'] = $settings['localBusinessOwnerOpeningHours'];
+
+/* -- Handle the opening hours specification */
+
+        $days = array("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday");
+        $openingHours = array();
+        if (isset($identity['localBusinessOwnerOpeningHours']) && is_array($identity['localBusinessOwnerOpeningHours']))
+        {
+            craft()->seomatic->convertTimes($identity['localBusinessOwnerOpeningHours']);
+            $index = 0;
+            foreach ($identity['localBusinessOwnerOpeningHours'] as $hours)
+            {
+                $openTime = "";
+                $closeTime = "";
+               if (isset($hours['open']) && $hours['open'])
+                    $openTime = $hours['open']->format('H:i:s', $hours['open']->getTimeZone());
+                if (isset($hours['close']) && $hours['close'])
+                    $closeTime = $hours['close']->format('H:i:s', $hours['close']->getTimeZone());
+                if ($openTime && $closeTime)
+                {
+                    $spec = array(
+                        "type" => "OpeningHoursSpecification",
+                        "closes" => $closeTime,
+                        "dayOfWeek" => array($days[$index]),
+                        "opens" => $openTime,
+                    );
+                    $openingHours[] = $spec;
+                }
+                $index++;
+            }
+        }
+        $openingHours = array_filter($openingHours);
+        $identity['openingHoursSpecification'] = $openingHours;
+        if (count($identity['openingHoursSpecification']) <= 1)
+            unset($identity['openingHoursSpecification']);
+
         $identity['corporationOwnerTickerSymbol'] = $settings['corporationOwnerTickerSymbol'];
 
         $identity['restaurantOwnerServesCuisine'] = $settings['restaurantOwnerServesCuisine'];
+        $identity['restaurantOwnerMenuUrl'] = $settings['restaurantOwnerMenuUrl'];
+        $identity['restaurantOwnerReservationsUrl'] = $settings['restaurantOwnerReservationsUrl'];
 
         $result = $identity;
 
@@ -887,10 +1084,31 @@ class SeomaticService extends BaseApplicationComponent
 /* -- Settings generic to all Identity types */
 
         $identityJSONLD['type'] = ucfirst($identity['siteOwnerType']);
+        if ($identity['siteOwnerSubType'])
+            $identityJSONLD['type'] = $identity['siteOwnerSubType'];
+        if ($identity['siteOwnerSpecificType'])
+            $identityJSONLD['type'] = $identity['siteOwnerSpecificType'];
+
         $identityJSONLD['name'] = $identity['genericOwnerName'];
         $identityJSONLD['alternateName'] = $identity['genericOwnerAlternateName'];
         $identityJSONLD['description'] = $identity['genericOwnerDescription'];
         $identityJSONLD['url'] = $identity['genericOwnerUrl'];
+
+        $sameAs = array();
+        array_push($sameAs, $helper['twitterUrl']);
+        array_push($sameAs, $helper['facebookUrl']);
+        array_push($sameAs, $helper['googlePlusUrl']);
+        array_push($sameAs, $helper['linkedInUrl']);
+        array_push($sameAs, $helper['youtubeUrl']);
+        array_push($sameAs, $helper['youtubeChannelUrl']);
+        array_push($sameAs, $helper['instagramUrl']);
+        array_push($sameAs, $helper['pinterestUrl']);
+        array_push($sameAs, $helper['githubUrl']);
+        $sameAs = array_filter($sameAs);
+        $sameAs = array_values($sameAs);
+        if (!empty($sameAs))
+            $identityJSONLD['sameAs'] = $sameAs;
+
         if (isset($identity['genericOwnerImage']))
             $identityJSONLD['image'] = $identity['genericOwnerImage'];
         $identityJSONLD['telephone'] = $identity['genericOwnerTelephone'];
@@ -908,9 +1126,30 @@ class SeomaticService extends BaseApplicationComponent
         if (count($identityJSONLD['address']) == 1)
             unset($identityJSONLD['address']);
 
+/* -- This needs to be an additional field if we implement it
+        if ($identity['genericOwnerTelephone'])
+        {
+            $contactPoint = array(
+                "type" => "ContactPoint",
+                "telephone" => $identity['genericOwnerTelephone'],
+                "contactType" => "Contact",
+            );
+            $contactPoint = array_filter($contactPoint);
+            $identityJSONLD['contactPoint'] = array($contactPoint);
+        }
+*/
+
+/* -- Settings for all person Identity types */
+
+        if ($identity['siteOwnerType'] == "Person")
+        {
+            $identityJSONLD['gender'] = $identity['personOwnerGender'];
+            $identityJSONLD['birthPlace'] = $identity['personOwnerBirthPlace'];
+        }
+
 /* -- Settings for all organization Identity types */
 
-        if ($identity['siteOwnerType'] != "person")
+        if ($identity['siteOwnerType'] == "Organization")
         {
             if (isset($identity['genericOwnerImage']))
                 $identityJSONLD['logo'] = $identity['genericOwnerImage'];
@@ -921,12 +1160,21 @@ class SeomaticService extends BaseApplicationComponent
             );
             $geo = array_filter($geo);
 
+            $locImage = "";
+            if (isset($identity['genericOwnerImage']))
+                $locImage = $identity['genericOwnerImage'];
+
             $location = array(
                 "type" => "Place",
                 "name" => $identity['genericOwnerName'],
                 "alternateName" => $identity['genericOwnerAlternateName'],
                 "description" => $identity['genericOwnerDescription'],
                 "hasMap" => $helper['ownerMapUrl'],
+                "telephone" =>  $identity['genericOwnerTelephone'],
+                "image" =>  $locImage,
+                "logo" =>  $locImage,
+                "url" =>  $identity['genericOwnerUrl'],
+                "sameAs" =>  $sameAs,
                 "geo" => $geo,
                 "address" => $address,
             );
@@ -948,26 +1196,61 @@ class SeomaticService extends BaseApplicationComponent
             $identityJSONLD['foundingLocation'] = $identity['organizationOwnerFoundingLocation'];
         }
 
-/* -- Settings on a per-Identity type basis */
+/* -- Settings on a per-Identity sub-type basis */
 
-        switch ($identity['siteOwnerType'])
+        switch ($identity['siteOwnerSubType'])
         {
-            case 'corporation':
+            case 'Airline':
+            break;
+
+            case 'Corporation':
                 $identityJSONLD['tickerSymbol'] = $identity['corporationOwnerTickerSymbol'];
             break;
 
-            case 'organization':
+            case 'EducationalOrganization':
             break;
 
-            case 'restaurant':
+            case 'GovernmentOrganization':
+            break;
+
+            case 'LocalBusiness':
+                if (isset($identity['openingHoursSpecification']))
+                {
+                    if (isset($identityJSONLD['location']))
+                        $identityJSONLD['openingHoursSpecification'] = $identity['openingHoursSpecification'];
+                    if (isset($identityJSONLD['location']))
+                        $identityJSONLD['location']['openingHoursSpecification'] = $identity['openingHoursSpecification'];
+                }
+            break;
+
+            case 'NGO':
+            break;
+
+            case 'PerformingGroup':
+            break;
+
+            case 'SportsOrganization':
+            break;
+
+        }
+
+/* -- Settings on a per-Identity specific-type basis */
+
+        switch ($identity['siteOwnerSpecificType'])
+        {
+            case 'FoodEstablishment':
+            case 'Bakery':
+            case 'BarOrPub':
+            case 'Brewery':
+            case 'CafeOrCoffeeShop':
+            case 'FastFoodRestaurant':
+            case 'IceCreamShop':
+            case 'Restaurant':
+            case 'Winery':
                 $identityJSONLD['servesCuisine'] = $identity['restaurantOwnerServesCuisine'];
+                $identityJSONLD['menu'] = $identity['restaurantOwnerMenuUrl'];
+                $identityJSONLD['acceptsReservations'] = $identity['restaurantOwnerReservationsUrl'];
             break;
-
-            case 'person':
-                $identityJSONLD['gender'] = $identity['personOwnerGender'];
-                $identityJSONLD['birthPlace'] = $identity['personOwnerBirthPlace'];
-            break;
-
         }
 
         $result = array_filter($identityJSONLD);
@@ -1002,8 +1285,10 @@ class SeomaticService extends BaseApplicationComponent
         $social['linkedInHandle'] = $settings['linkedInHandle'];
         $social['googlePlusHandle'] = $settings['googlePlusHandle'];
         $social['youtubeHandle'] = $settings['youtubeHandle'];
+        $social['youtubeChannelHandle'] = $settings['youtubeChannelHandle'];
         $social['instagramHandle'] = $settings['instagramHandle'];
         $social['pinterestHandle'] = $settings['pinterestHandle'];
+        $social['githubHandle'] = $settings['githubHandle'];
 
         $result = $social;
 
@@ -1030,7 +1315,23 @@ class SeomaticService extends BaseApplicationComponent
 
         $creator['locale'] = $settings['locale'];
 
-        $creator['siteCreatorType'] = $settings['siteCreatorType'];
+        $creator['siteCreatorType'] = ucfirst($settings['siteCreatorType']);
+        $creator['siteCreatorSubType'] = $settings['siteCreatorSubType'];
+        $creator['siteCreatorSpecificType'] = $settings['siteCreatorSpecificType'];
+
+/* -- Handle migrating the old way of storing siteCreatorType */
+
+        if (($creator['siteCreatorType'] != "Organization") && ($creator['siteCreatorType'] != "Person"))
+        {
+            $creator['siteCreatorSubType'] = $creator['siteCreatorType'];
+            $creator['siteCreatorType'] = "Organization";
+        }
+
+        if ($creator['siteCreatorSubType'] == "Restaurant")
+        {
+            $creator['siteCreatorSpecificType'] = $creator['siteCreatorSubType'];
+            $creator['siteCreatorSubType'] = "LocalBusiness";
+        }
 
         $creator['genericCreatorName'] = $settings['genericCreatorName'];
         $creator['genericCreatorAlternateName'] = $settings['genericCreatorAlternateName'];
@@ -1062,6 +1363,10 @@ class SeomaticService extends BaseApplicationComponent
 
         $creator['corporationCreatorTickerSymbol'] = $settings['corporationCreatorTickerSymbol'];
 
+        $identity['restaurantCreatorServesCuisine'] = $settings['restaurantCreatorServesCuisine'];
+        $identity['restaurantCreatorMenuUrl'] = $settings['restaurantCreatorMenuUrl'];
+        $identity['restaurantCreatorReservationsUrl'] = $settings['restaurantCreatorReservationsUrl'];
+
         $creator['genericCreatorHumansTxt'] = $settings['genericCreatorHumansTxt'];
 
         $result = $creator;
@@ -1088,10 +1393,16 @@ class SeomaticService extends BaseApplicationComponent
 /* -- Settings generic to all Creator types */
 
         $creatorJSONLD['type'] = ucfirst($creator['siteCreatorType']);
+        if ($creator['siteCreatorSubType'])
+            $creatorJSONLD['type'] = $creator['siteCreatorSubType'];
+        if ($creator['siteCreatorSpecificType'])
+            $creatorJSONLD['type'] = $creator['siteCreatorSpecificType'];
+
         $creatorJSONLD['name'] = $creator['genericCreatorName'];
         $creatorJSONLD['alternateName'] = $creator['genericCreatorAlternateName'];
         $creatorJSONLD['description'] = $creator['genericCreatorDescription'];
         $creatorJSONLD['url'] = $creator['genericCreatorUrl'];
+
         if (isset($creator['genericCreatorImage']))
             $creatorJSONLD['image'] = $creator['genericCreatorImage'];
         $creatorJSONLD['telephone'] = $creator['genericCreatorTelephone'];
@@ -1109,9 +1420,30 @@ class SeomaticService extends BaseApplicationComponent
         if (count($creatorJSONLD['address']) == 1)
             unset($creatorJSONLD['address']);
 
+/* -- This needs to be an additional fieldtype if we implement it
+        if ($creator['genericCreatorTelephone'])
+        {
+            $contactPoint = array(
+                "type" => "ContactPoint",
+                "telephone" => $creator['genericCreatorTelephone'],
+                "contactType" => "Contact",
+            );
+            $contactPoint = array_filter($contactPoint);
+            $creatorJSONLD['contactPoint'] = array($contactPoint);
+        }
+*/
+
+/* -- Settings for all person Creator types */
+
+        if ($creator['siteCreatorType'] == "Person")
+        {
+            $creatorJSONLD['gender'] = $creator['personCreatorGender'];
+            $creatorJSONLD['birthPlace'] = $creator['personCreatorBirthPlace'];
+        }
+
 /* -- Settings for all organization Creator types */
 
-        if ($creator['siteCreatorType'] != "person")
+        if ($creator['siteCreatorType'] == "Organization")
         {
             if (isset($creator['genericCreatorImage']))
                 $creatorJSONLD['logo'] = $creator['genericCreatorImage'];
@@ -1122,12 +1454,20 @@ class SeomaticService extends BaseApplicationComponent
             );
             $geo = array_filter($geo);
 
+            $locImage = "";
+            if (isset($identity['genericCreatorImage']))
+                $locImage = $identity['genericCreatorImage'];
+
             $location = array(
                 "type" => "Place",
                 "name" => $creator['genericCreatorName'],
                 "alternateName" => $creator['genericCreatorAlternateName'],
                 "description" => $creator['genericCreatorDescription'],
                 "hasMap" => $helper['creatorMapUrl'],
+                "telephone" =>  $creator['genericCreatorTelephone'],
+                "image" =>  $locImage,
+                "logo" =>  $locImage,
+                "url" =>  $creator['genericCreatorUrl'],
                 "geo" => $geo,
                 "address" => $address,
             );
@@ -1149,25 +1489,54 @@ class SeomaticService extends BaseApplicationComponent
             $creatorJSONLD['foundingLocation'] = $creator['organizationCreatorFoundingLocation'];
         }
 
-/* -- Settings on a per-Creator type basis */
+/* -- Settings on a per-Creator sub-type basis */
 
-        switch ($creator['siteCreatorType'])
+        switch ($creator['siteCreatorSubType'])
         {
-            case 'corporation':
+            case 'Airline':
+            break;
+
+            case 'Corporation':
                 $creatorJSONLD['tickerSymbol'] = $creator['corporationCreatorTickerSymbol'];
             break;
 
-            case 'organization':
+            case 'EducationalOrganization':
             break;
 
-            case 'restaurant':
+            case 'GovernmentOrganization':
             break;
 
-            case 'person':
-                $creatorJSONLD['gender'] = $creator['personCreatorGender'];
-                $creatorJSONLD['birthPlace'] = $creator['personCreatorBirthPlace'];
+            case 'LocalBusiness':
             break;
 
+            case 'NGO':
+            break;
+
+            case 'PerformingGroup':
+            break;
+
+            case 'SportsOrganization':
+            break;
+
+        }
+
+/* -- Settings on a per-Creator specific-type basis */
+
+        switch ($creator['siteCreatorSpecificType'])
+        {
+            case 'FoodEstablishment':
+            case 'Bakery':
+            case 'BarOrPub':
+            case 'Brewery':
+            case 'CafeOrCoffeeShop':
+            case 'FastFoodRestaurant':
+            case 'IceCreamShop':
+            case 'Restaurant':
+            case 'Winery':
+                $creatorJSONLD['servesCuisine'] = $creator['restaurantCreatorServesCuisine'];
+                $creatorJSONLD['menu'] = $creator['restaurantCreatorMenuUrl'];
+                $creatorJSONLD['acceptsReservations'] = $creator['restaurantCreatorReservationsUrl'];
+            break;
         }
 
         $result = array_filter($creatorJSONLD);
@@ -1206,8 +1575,10 @@ class SeomaticService extends BaseApplicationComponent
         array_push($sameAs, $metaVars['seomaticHelper']['googlePlusUrl']);
         array_push($sameAs, $metaVars['seomaticHelper']['linkedInUrl']);
         array_push($sameAs, $metaVars['seomaticHelper']['youtubeUrl']);
+        array_push($sameAs, $metaVars['seomaticHelper']['youtubeChannelUrl']);
         array_push($sameAs, $metaVars['seomaticHelper']['instagramUrl']);
         array_push($sameAs, $metaVars['seomaticHelper']['pinterestUrl']);
+        array_push($sameAs, $metaVars['seomaticHelper']['githubUrl']);
         $sameAs = array_filter($sameAs);
         $sameAs = array_values($sameAs);
         if (!empty($sameAs))
@@ -1390,7 +1761,7 @@ class SeomaticService extends BaseApplicationComponent
     Add the social media URLs to 'seomaticHelper'
 -------------------------------------------------------------------------------- */
 
-    private function addSocialHelpers(&$helper, $social, $siteOwnerType)
+    private function addSocialHelpers(&$helper, $social, $identity)
     {
         if ($social['twitterHandle'])
         {
@@ -1410,14 +1781,17 @@ class SeomaticService extends BaseApplicationComponent
         if ($social['googlePlusHandle'])
         {
             ltrim($social['googlePlusHandle'], '+');
-            $helper['googlePlusUrl'] = "https://plus.google.com/+" . $social['googlePlusHandle'];
+            if (is_numeric(substr($social['googlePlusHandle'], 0, 1)))
+                $helper['googlePlusUrl'] = "https://plus.google.com/" . $social['googlePlusHandle'];
+            else
+                $helper['googlePlusUrl'] = "https://plus.google.com/+" . $social['googlePlusHandle'];
         }
         else
             $helper['googlePlusUrl'] = '';
 
         if ($social['linkedInHandle'])
         {
-            if ($siteOwnerType == "person")
+            if ($identity['siteOwnerType'] == "Person")
                 $helper['linkedInUrl'] = "https://www.linkedin.com/in/" . $social['linkedInHandle'];
             else
                 $helper['linkedInUrl'] = "https://www.linkedin.com/company/" . $social['linkedInHandle'];
@@ -1432,6 +1806,14 @@ class SeomaticService extends BaseApplicationComponent
         else
             $helper['youtubeUrl'] = '';
 
+        if ($social['youtubeChannelHandle'])
+        {
+            $helper['youtubeChannelUrl'] = "https://www.youtube.com/c/" . $social['youtubeChannelHandle'];
+        }
+        else
+            $helper['youtubeChannelUrl'] = '';
+
+
         if ($social['instagramHandle'])
         {
             $helper['instagramUrl'] = "https://www.instagram.com/" . $social['instagramHandle'];
@@ -1445,6 +1827,13 @@ class SeomaticService extends BaseApplicationComponent
         }
         else
             $helper['pinterestUrl'] = '';
+
+        if ($social['githubHandle'])
+        {
+            $helper['githubUrl'] = "https://github.com/" . $social['githubHandle'];
+        }
+        else
+            $helper['githubUrl'] = '';
     } /* -- addSocialHelpers */
 
 /* --------------------------------------------------------------------------------
@@ -1457,8 +1846,15 @@ class SeomaticService extends BaseApplicationComponent
 /* -- Computed identity strings */
 
         $helper['ownerGoogleSiteVerification'] = $identity['googleSiteVerification'];
+        $helper['ownerGoogleAnalyticsUID'] = $identity['googleAnalyticsUID'];
+        $helper['googleAnalyticsSendPageview'] = $identity['googleAnalyticsSendPageview'];
+        $helper['googleAnalyticsAdvertising'] = $identity['googleAnalyticsAdvertising'];
+        $helper['googleAnalyticsEcommerce'] = $identity['googleAnalyticsEcommerce'];
+        $helper['googleAnalyticsEEcommerce'] = $identity['googleAnalyticsEEcommerce'];
+        $helper['googleAnalyticsLinkAttribution'] = $identity['googleAnalyticsLinkAttribution'];
+        $helper['googleAnalyticsLinker'] = $identity['googleAnalyticsLinker'];
         $now = new DateTime;
-        $period = ". ";
+        $period = ".";
         $name = $identity['genericOwnerName'];
         if ($name)
         {
@@ -1466,7 +1862,7 @@ class SeomaticService extends BaseApplicationComponent
                 $period =" ";
         }
 
-        $helper['ownerCopyrightNotice'] = Craft::t("Copyright") . " &copy;" . $now->year() . " " . $name . $period . Craft::t("All rights reserved.");
+        $helper['ownerCopyrightNotice'] = Craft::t("Copyright") . " &copy;" . $now->year() . " " . $name . $period;
 
         $helper['ownerAddressString'] = '';
         $helper['ownerAddressHtml'] = '';
@@ -1505,14 +1901,14 @@ class SeomaticService extends BaseApplicationComponent
 /* -- Computed identity strings */
 
         $now = new DateTime;
-        $period = ". ";
+        $period = ".";
         $name = $creator['genericCreatorName'];
         if ($name)
         {
             if ($name[strlen($name) -1] == '.')
                 $period =" ";
         }
-        $helper['creatorCopyrightNotice'] = Craft::t("Copyright") . " &copy;" . $now->year() . " " . $name . $period . Craft::t("All rights reserved.");
+        $helper['creatorCopyrightNotice'] = Craft::t("Copyright") . " &copy;" . $now->year() . " " . $name . $period;
 
         $helper['creatorAddressString'] = '';
         $helper['creatorAddressHtml'] = '';
@@ -1569,12 +1965,36 @@ class SeomaticService extends BaseApplicationComponent
         $seomaticSocial = $metaVars['seomaticSocial'];
         $seomaticCreator = $metaVars['seomaticCreator'];
 
+/* -- Set up the title prefix and suffix for the OpenGraph and Twitter titles */
+
+        $titlePrefix = "";
+        if ($seomaticSiteMeta['siteSeoTitlePlacement'] == "before")
+            $titlePrefix =  $seomaticSiteMeta['siteSeoName'] . " " . $seomaticSiteMeta['siteSeoTitleSeparator'] . " ";
+        $titleSuffix = "";
+        if ($seomaticSiteMeta['siteSeoTitlePlacement'] == "after")
+            $titleSuffix = " " . $seomaticSiteMeta['siteSeoTitleSeparator'] . " " . $seomaticSiteMeta['siteSeoName'];
+
+        if (isset($seomaticMeta['twitter']))
+            $seomaticMeta['twitter']['title'] = $titlePrefix . $seomaticMeta['seoTitle'] . $titleSuffix;
+        if (isset($seomaticMeta['og']))
+            $seomaticMeta['og']['title'] = $titlePrefix . $seomaticMeta['seoTitle'] . $titleSuffix;
+
 /* -- Truncate seoTitle, seoDescription, and seoKeywords to recommended values */
 
-        if ($seomaticSiteMeta['siteSeoTitlePlacement'] == "none")
-            $titleLength = 70;
+        $shouldTruncate = craft()->config->get("truncateTitleTags", "seomatic");
+        if ($shouldTruncate)
+        {
+            // We use 69 because we append a … character when strings are truncated, so the real length is 70
+            if ($seomaticSiteMeta['siteSeoTitlePlacement'] == "none")
+                $titleLength = 69;
+            else
+                $titleLength = (69 - strlen(" | ") - strlen($seomaticSiteMeta['siteSeoName']));
+        }
         else
-            $titleLength = (70 - strlen(" | ") - strlen($seomaticSiteMeta['siteSeoName']));
+        {
+            $titleLength = 200;
+        }
+
         $vars = array('seoTitle' => $titleLength, 'seoDescription' => 160, 'seoKeywords' => 200);
 
         foreach ($vars as $key => $value)
@@ -1607,6 +2027,8 @@ class SeomaticService extends BaseApplicationComponent
 
     public function extractKeywords($text = null, $limit = 15, $withoutStopWords = true)
     {
+        if (!$text)
+            return;
         $text = strtolower($text);
         $config = new Config;
         if ($withoutStopWords)
@@ -1638,6 +2060,8 @@ class SeomaticService extends BaseApplicationComponent
 
     public function extractSummary($text = null, $limit = null, $withoutStopWords = true)
     {
+        if (!$text)
+            return;
         $config = new Config;
         if ($withoutStopWords)
         {
@@ -1734,8 +2158,37 @@ class SeomaticService extends BaseApplicationComponent
                 $keys = array_keys($value);
                 if ($keys[0] == "0")
                 {
-                    $line = $key . ": [\"" . implode("\",\"", $value) . "\"]" . $comma  . "\n";
+                    $predicate = ": [";
+                    $suffix = "]" . $comma  . "\n";
+                    $subLines = "";
+                    $numSubi = count($value);
+                    $subi = 0;
+                    foreach ($value as $subValue)
+                    {
+                        $subi++;
+                        if ($subi == $numSubi)
+                            $subComma = "";
+                        else
+                            $subComma = ",";
+                        if (is_array($subValue))
+                        {
+                            $blockOpen = "{";
+                            $blockOpen = str_pad($blockOpen, strlen($blockOpen) + (($level+1) * 4), " ", STR_PAD_LEFT);
+                            $blockClose = "}" . $subComma;
+                            $blockClose = str_pad($blockClose, strlen($blockClose) + (($level+1) * 4), " ", STR_PAD_LEFT);
+                            $subLines = $subLines . "\n" . $blockOpen . "\n" . $this->_print_twig_array($subValue, $level + 2) . $blockClose;
+                            if ($subi == $numSubi)
+                            {
+                                $subLines .= "\n";
+                                $suffix = str_pad($suffix, strlen($suffix) + ($level * 4), " ", STR_PAD_LEFT);
+                            }
+                        }
+                        else
+                            $subLines .= "\"" . $subValue . "\"" . $subComma;
+                    }
+                    $line =  $key . $predicate;
                     $line = str_pad($line, strlen($line) + ($level * 4), " ", STR_PAD_LEFT);
+                    $line = $line . $subLines . $suffix;
                 }
                 else
                 {
@@ -1831,5 +2284,38 @@ class SeomaticService extends BaseApplicationComponent
 
         return $result;
     } /* -- encodeEmailAddress */
+
+    /**
+     * Loops through the data and converts the times to DateTime objects.
+     *
+     * @access private
+     * @param array &$value
+     */
+    public function convertTimes(&$value, $timezone=null)
+    {
+        if (is_array($value))
+        {
+            foreach ($value as &$day)
+            {
+                if ((is_string($day['open']) && $day['open']) || (is_array($day['open']) && $day['open']['time']))
+                {
+                    $day['open'] = DateTime::createFromString($day['open'], $timezone);
+                }
+                else
+                {
+                    $day['open'] = '';
+                }
+
+                if ((is_string($day['close']) && $day['close']) || (is_array($day['close']) && $day['close']['time']))
+                {
+                    $day['close'] = DateTime::createFromString($day['close'], $timezone);
+                }
+                else
+                {
+                    $day['close'] = '';
+                }
+            }
+        }
+    } /* -- convertTimes */
 
 } /* -- class SeomaticService */

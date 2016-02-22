@@ -6,6 +6,7 @@
 {% includeCssResource "seomatic/css/css-reset.css" %}
 {% includeCssResource "seomatic/css/prism.min.css" %}
 {% includeJsResource "seomatic/js/seomatic.js" %}
+{% includeJsResource "seomatic/js/type_list.js" %}
 {% includeJsResource "seomatic/js/identity.js" %}
 {% includeJsResource "seomatic/js/jquery.bpopup.min.js" %}
 {% includeJsResource "seomatic/js/prism.min.js" %}
@@ -50,11 +51,12 @@
                     {% include "_includes/tabs" %}
 
 <!-- Site Ownership -->
+
                     <h2>{{ "Site Ownership" |t }}</h2>
 
                     {{ forms.textField({
                         label: "Google Site Verification"|t,
-                        instructions: "For the <code>&lt;meta name='google-site-verification'&gt;</code> tag. <a href='https://www.google.com/webmasters/verification/' target='_blank'>Here's how to get it.</a>" |t |raw,
+                        instructions: "For the <code>&lt;meta name='google-site-verification'&gt;</code> tag.  Only enter the code in the <code>content=''</code>, not the entire tag.  <a href='https://www.google.com/webmasters/verification/' target='_blank'>Here's how to get it.</a>" |t |raw,
                         id: 'googleSiteVerification',
                         class: 'nicetext',
                         name: 'googleSiteVerification',
@@ -63,22 +65,166 @@
                         locale: identity.locale,
                     }) }}
 
-                    {{ forms.selectField({
-                        first: true,
-                        label: "Site Owner Entity Type"|t,
-                        instructions: "The type of entity that owns this website."|t,
-                        id: "siteOwnerType",
-                        options: {
-                            corporation: "Corporation"|t,
-                            organization: "Organization"|t,
-                            restaurant: "Restaurant"|t,
-                            person: "Person"|t,
-                        },
-                        name: "siteOwnerType",
-                        value: identity.siteOwnerType,
-                        required: true,
+                    {{ forms.textField({
+                        label: "Google Analytics Tracking ID"|t,
+                        instructions: "If you enter your Google Analytics Tracking ID here, the Google Analytics script tags will be included in your <code>&lt;head&gt;</code> (the script is not included if <code>devMode</code> is on or during Live Preview).  Only enter the ID, e.g.: <code>UA-XXXXXX-XX</code>, not the entire script code.  <a href='https://support.google.com/analytics/answer/1032385?hl=en' target='_blank'>Here's how to get it.</a>" |t |raw,
+                        id: 'googleAnalyticsUID',
+                        class: 'nicetext',
+                        name: 'googleAnalyticsUID',
+                        value: identity.googleAnalyticsUID,
+                        required: false,
                         locale: identity.locale,
                     }) }}
+
+                     {{ forms.lightswitchField({
+                        label: "Automatically send Google Analytics PageView"|t,
+                        instructions: "Controls whether the Google Analytics script automatically sends a PageView to Google Analytics when your pages are loaded" |t |raw,
+                        id: 'googleAnalyticsSendPageview',
+                        name: 'googleAnalyticsSendPageview',
+                        on: identity.googleAnalyticsSendPageview,
+                    }) }}
+
+                    <div class="field">
+                        <div class="heading">
+                            <label>{{ "Google Analytics Plugins"|t}}{% if craft.isLocalized and identity.locale %}<span class="locale">{{ identity.locale }}</span>{% endif %}</label>
+                            <div class="instructions"><p>{{ "Select which Google Analytics plugins to enable.  <a href='https://developers.google.com/analytics/devguides/collection/analyticsjs/' target='_blank'>Learn More</a>" |t |raw}}</p></div>
+                        </div>
+                        <div class="lightswitch-list-container">
+                            <div class="inline-item">
+                             {{ forms.lightswitchField({
+                                id: 'googleAnalyticsAdvertising',
+                                name: 'googleAnalyticsAdvertising',
+                                class: "inline-item",
+                                fieldClass: "inline-item",
+                                on: identity.googleAnalyticsAdvertising,
+                            }) }}
+                           </div>
+                            <div class="inline-item">
+                                <label for="googleAnalyticsAdvertising">{{ "Display Features"|t}}</label>
+                            </div>
+                        </div>
+                        <div class="lightswitch-list-container">
+                            <div class="inline-item">
+                             {{ forms.lightswitchField({
+                                id: 'googleAnalyticsEcommerce',
+                                name: 'googleAnalyticsEcommerce',
+                                class: "inline-item",
+                                fieldClass: "inline-item",
+                                on: identity.googleAnalyticsEcommerce,
+                            }) }}
+                           </div>
+                            <div class="inline-item">
+                                <label for="googleAnalyticsEcommerce">{{ "Ecommerce"|t}}</label>
+                            </div>
+                        </div>
+                        <div class="lightswitch-list-container">
+                            <div class="inline-item">
+                             {{ forms.lightswitchField({
+                                id: 'googleAnalyticsEEcommerce',
+                                name: 'googleAnalyticsEEcommerce',
+                                class: "inline-item",
+                                fieldClass: "inline-item",
+                                on: identity.googleAnalyticsEEcommerce,
+                            }) }}
+                           </div>
+                            <div class="inline-item">
+                                <label for="googleAnalyticsEEcommerce">{{ "Enhanced Ecommerce"|t}}</label>
+                            </div>
+                        </div>
+                        <div class="lightswitch-list-container">
+                            <div class="inline-item">
+                             {{ forms.lightswitchField({
+                                id: 'googleAnalyticsLinkAttribution',
+                                name: 'googleAnalyticsLinkAttribution',
+                                class: "inline-item",
+                                fieldClass: "inline-item",
+                                on: identity.googleAnalyticsLinkAttribution,
+                            }) }}
+                           </div>
+                            <div class="inline-item">
+                                <label for="googleAnalyticsLinkAttribution">{{ "Enhanced Link Attribution"|t}}</label>
+                            </div>
+                        </div>
+                        <div class="lightswitch-list-container">
+                            <div class="inline-item">
+                             {{ forms.lightswitchField({
+                                id: 'googleAnalyticsLinker',
+                                name: 'googleAnalyticsLinker',
+                                class: "inline-item",
+                                fieldClass: "inline-item",
+                                on: identity.googleAnalyticsLinker,
+                            }) }}
+                           </div>
+                            <div class="inline-item">
+                                <label for="googleAnalyticsLinker">{{ "Linker"|t}}</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <div class="heading">
+                            <label for="siteOwnerType">{{ "Site Owner Entity Type"|t}}{% if craft.isLocalized and identity.locale %}<span class="locale">{{ identity.locale }}</span>{% endif %}</label>
+                            <div class="instructions"><p>{{ "The type of entity that owns this website.  Choose as general or specific of an Entity Type as you wish.  Leave a sub-type blank if you don't want to specify a sub-type." |t |raw}}</p></div>
+                        </div>
+                        <div>
+                            <div class="inline-item">
+                                {{ forms.selectField({
+                                    id: "siteOwnerType",
+                                    class: "inline-item",
+                                    fieldClass: "inline-item",
+                                    options: {
+                                        "Organization": "Organization"|t,
+                                        "Person": "Person"|t,
+                                    },
+                                    name: "siteOwnerType",
+                                    value: identity.siteOwnerType,
+                                    required: true,
+                                    locale: identity.locale,
+                                }) }}
+                            </div>
+                            <div class="inline-item">
+                               {{ forms.selectField({
+                                    id: "siteOwnerSubType",
+                                    label: "&rarr;",
+                                    class: "inline-item",
+                                    fieldClass: "inline-item",
+                                    options: {
+                                        "": "",
+                                        "Airline": "Airline"|t,
+                                        "Corporation": "Corporation"|t,
+                                        "EducationalOrganization": "Educational Organization"|t,
+                                        "GovernmentOrganization": "Government Organization"|t,
+                                        "LocalBusiness": "Local Business"|t,
+                                        "NGO": "Non-Government Organization"|t,
+                                        "PerformingGroup": "Performing Group"|t,
+                                        "SportsOrganization": "Sports Organization"|t,
+                                    },
+                                    name: "siteOwnerSubType",
+                                    value: identity.siteOwnerSubType,
+                                    required: false,
+                                    locale: identity.locale,
+                                }) }}
+                            </div>
+                            <div class="inline-item">
+                                {{ forms.selectField({
+                                    id: "siteOwnerSpecificType",
+                                    label: "&rarr;",
+                                    class: "inline-item",
+                                    fieldClass: "inline-item",
+                                   options: {
+                                    },
+                                    name: "siteOwnerSpecificType",
+                                    value: identity.siteOwnerSpecificType,
+                                    required: false,
+                                    locale: identity.locale,
+                                }) }}
+                            </div>
+                        </div>
+                    </div>
+                    {% set myJs %}
+                        setSelectedValue("{{ identity.siteOwnerSpecificType }}");
+                    {% endset %}
+                    {% includeJs myJs %}
 
 <!-- General Info -->
                     <h2>{{ "General Info" |t }}</h2>
@@ -117,6 +263,8 @@
                             class: 'nicetext',
                             name: 'genericOwnerDescription',
                             value: identity.genericOwnerDescription,
+                            maxlength: 1024,
+                            showCharsLeft: true,
                             required: false,
                             locale: identity.locale,
                         }) }}
@@ -291,9 +439,48 @@
                         </div>
                     </div>
 
-<!-- General organization fields -->
+<!-- ========== siteCreatorType ========== -->
 
-                    <div id="generic" class="metaPane">
+<!-- Person-specific fields -->
+
+                    <div id="Person" class="metaPane field">
+                        <h2>{{ "Person Info" |t }}</h2>
+                        <div class="field">
+                            <div class="half-width-field half-width-field-left">
+                            {{ forms.selectField({
+                                label: "Person Gender"|t,
+                                instructions: "The gender of the person" |t |raw,
+                                id: 'personOwnerGender',
+                                class: 'nicetext',
+                                options: {
+                                    "Male": "Male"|t,
+                                    "Female": "Female"|t,
+                                    "Other": "Other"|t,
+                                },
+                                name: 'personOwnerGender',
+                                value: identity.personOwnerGender,
+                                required: false,
+                                locale: identity.locale,
+                            }) }}
+                            </div>
+                            <div class="half-width-field">
+                            {{ forms.textField({
+                                label: "Person Birth Place"|t,
+                                instructions: "The place where the person was born" |t |raw,
+                                id: 'personOwnerBirthPlace',
+                                class: 'nicetext',
+                                name: 'personOwnerBirthPlace',
+                                value: identity.personOwnerBirthPlace,
+                                required: false,
+                                locale: identity.locale,
+                            }) }}
+                            </div>
+                        </div>
+                    </div>
+
+<!-- General Organization fields -->
+
+                    <div id="Organization" class="metaPane">
                         <h2>{{ "Organization Info" |t }}</h2>
 
                         <div class="field">
@@ -352,9 +539,16 @@
 
                     </div>
 
+<!-- ========== siteCreatorSubType ========== -->
+
+<!-- Airline-specific fields -->
+
+                    <div id="Airline" class="metaSubPane field">
+                    </div>
+
 <!-- Corporation-specific fields -->
 
-                    <div id="corporation" class="metaPane field">
+                    <div id="Corporation" class="metaSubPane field">
                         <h2>{{ "Corporation Info" |t }}</h2>
                         {{ forms.textField({
                             label: "Corporation Ticker Symbol"|t,
@@ -368,18 +562,95 @@
                         }) }}
                     </div>
 
-<!-- Organization-specific fields -->
+<!-- EducationalOrganization-specific fields -->
 
-                    <div id="organization" class="metaPane field">
+                    <div id="EducationalOrganization" class="metaSubPane field">
                     </div>
 
-<!-- Restaurant-specific fields -->
+<!-- GovernmentOrganization-specific fields -->
 
-                    <div id="restaurant" class="metaPane field">
-                        <h2>{{ "Restaurant Info" |t }}</h2>
+                    <div id="GovernmentOrganization" class="metaSubPane field">
+                    </div>
+
+<!-- LocalBusiness-specific fields -->
+
+                    <div id="LocalBusiness" class="metaSubPane field">
+                        <h2>{{ "Local Business Info" |t }}</h2>
+
+                        <div class="field" id="localBusinessOwnerOpeningHours-field">
+                            <div class="heading">
+                                <label for="localBusinessOwnerOpeningHours">{{ "Opening Hours"|t}}{% if craft.isLocalized and identity.locale %}<span class="locale">{{ identity.locale }}</span>{% endif %}</label>
+                                <div class="instructions"><p>{{ "The opening hours for this local business.  If the business is closed on a given day, just leave the hours for that day blank." |t |raw}}</p></div>
+                            </div>
+
+                            {% macro day(id, name, value, day) %}
+                                {% from "_includes/forms" import time %}
+                                    <tr>
+                                        <th>
+                                            {{ craft.i18n.getLocaleData().getWeekDayName(day) }}
+                                        </th>
+                                        <td>
+                                            {{ time({
+                                                id: id~'-'~day~'-open',
+                                                name: name~'['~day~'][open]',
+                                                value: value ? value[day].open
+                                            }) }}
+                                        </td>
+                                        <td>
+                                            {{ time({
+                                                id: id~'-'~day~'-close',
+                                                name: name~'['~day~'][close]',
+                                                value: value ? value[day].close
+                                            }) }}
+                                        </td>
+                                    </tr>
+                            {% endmacro %}
+
+                            {% from _self import day %}
+
+                            {% set localeData = craft.i18n.getLocaleData() %}
+
+                            <table class="data">
+                                <thead>
+                                    <tr>
+                                        <td></td>
+                                        <th>Opening Time</th>
+                                        <th>Closing Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for i in 0..6 %}
+                                        {{ day('localBusinessOwnerOpeningHours', 'localBusinessOwnerOpeningHours', identity.localBusinessOwnerOpeningHours, i) }}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+<!-- NGO-specific fields -->
+
+                    <div id="NGO" class="metaSubPane field">
+                    </div>
+
+<!-- PerformingGroup-specific fields -->
+
+                    <div id="PerformingGroup" class="metaSubPane field">
+                    </div>
+
+<!-- SportsOrganization-specific fields -->
+
+                    <div id="SportsOrganization" class="metaSubPane field">
+                    </div>
+
+<!-- ========== siteCreatorSpecificType ========== -->
+
+<!-- FoodEstablishment-specific fields -->
+
+                    <div  class="metaSpecificPane field FoodEstablishment Bakery BarOrPub Brewery CafeOrCoffeeShop FastFoodRestaurant IceCreamShop Restaurant Winery">
+                        <h2>{{ "Food Establishment Info" |t }}</h2>
                         {{ forms.textField({
-                            label: "Restaurant Cuisine"|t,
-                            instructions: "The primary type of cuisine that the restaurant serves" |t |raw,
+                            label: "Food Establishment Cuisine"|t,
+                            instructions: "The primary type of cuisine that the food establishment serves" |t |raw,
                             id: 'restaurantOwnerServesCuisine',
                             class: 'nicetext',
                             name: 'restaurantOwnerServesCuisine',
@@ -387,43 +658,28 @@
                             required: false,
                             locale: identity.locale,
                         }) }}
-                    </div>
 
-<!-- Person-specific fields -->
+                        {{ forms.textField({
+                            label: "Food Establishment Menu URL"|t,
+                            instructions: "URL to the food establishment's menu" |t |raw,
+                            id: 'restaurantOwnerMenuUrl',
+                            class: 'nicetext',
+                            name: 'restaurantOwnerMenuUrl',
+                            value: identity.restaurantOwnerMenuUrl,
+                            required: false,
+                            locale: identity.locale,
+                        }) }}
 
-                    <div id="person" class="metaPane field">
-                        <h2>{{ "Person Info" |t }}</h2>
-                        <div class="field">
-                            <div class="half-width-field half-width-field-left">
-                            {{ forms.selectField({
-                                label: "Person Gender"|t,
-                                instructions: "The gender of the person" |t |raw,
-                                id: 'personOwnerGender',
-                                class: 'nicetext',
-                                options: {
-                                    "Male": "Male"|t,
-                                    "Female": "Female"|t,
-                                    "Other": "Other"|t,
-                                },
-                                name: 'personOwnerGender',
-                                value: identity.personOwnerGender,
-                                required: false,
-                                locale: identity.locale,
-                            }) }}
-                            </div>
-                            <div class="half-width-field">
-                            {{ forms.textField({
-                                label: "Person Birth Place"|t,
-                                instructions: "The place where the person was born" |t |raw,
-                                id: 'personOwnerBirthPlace',
-                                class: 'nicetext',
-                                name: 'personOwnerBirthPlace',
-                                value: identity.personOwnerBirthPlace,
-                                required: false,
-                                locale: identity.locale,
-                            }) }}
-                            </div>
-                        </div>
+                        {{ forms.textField({
+                            label: "Food Establishment Reservations URL"|t,
+                            instructions: "URL to the food establishment's reservations page" |t |raw,
+                            id: 'restaurantOwnerReservationsUrl',
+                            class: 'nicetext',
+                            name: 'restaurantOwnerReservationsUrl',
+                            value: identity.restaurantOwnerReservationsUrl,
+                            required: false,
+                            locale: identity.locale,
+                        }) }}
                     </div>
 
                     <p>&nbsp;</p>

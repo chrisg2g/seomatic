@@ -99,4 +99,12 @@
 
 {{ craft.seomatic.renderWebsite() |raw }}
 
+<!-- Place -->
+
+{{ craft.seomatic.renderPlace() |raw }}
+
+<!-- Google Analytics -->
+
+{% if not craft.config.devMode and not craft.request.isLivePreview %}{{ craft.seomatic.renderGoogleAnalytics() |raw }}{% endif %}
+
 <!-- END SEOmatic rendered SEO Meta -->

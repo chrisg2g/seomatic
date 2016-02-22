@@ -25,12 +25,12 @@ class SeomaticPlugin extends BasePlugin
 
     public function getVersion()
     {
-        return '1.0.12';
+        return '1.1.4';
     }
 
     public function getSchemaVersion()
     {
-        return '1.0.4';
+        return '1.1.4';
     }
 
     public function getDeveloper()
@@ -54,7 +54,7 @@ class SeomaticPlugin extends BasePlugin
 
         craft()->templates->hook('seomaticRender', function(&$context)
         {
-            if (craft()->request->isSiteRequest())
+            if ((craft()->request->isSiteRequest()) && (isset($context['seomaticMeta'])))
             {
                 $locale = craft()->language;
                 $seomaticMeta = $context['seomaticMeta'];
@@ -99,6 +99,7 @@ class SeomaticPlugin extends BasePlugin
     {
         return array(
             'humans.txt'                                            => array('action' => 'seomatic/renderHumans'),
+            'robots.txt'                                            => array('action' => 'seomatic/renderRobots'),
         );
     }
 

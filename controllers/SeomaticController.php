@@ -4,7 +4,7 @@ namespace Craft;
 class SeomaticController extends BaseController
 {
 
-    protected $allowAnonymous = array('actionRenderHumans');
+    protected $allowAnonymous = array('actionRenderHumans', 'actionRenderRobots');
 
 /* --------------------------------------------------------------------------------
     Render the humans.txt template
@@ -17,6 +17,12 @@ class SeomaticController extends BaseController
         if (!$locale)
             $locale = craft()->language;
         $metaVars = craft()->seomatic->getGlobals('', $locale);
+
+/* -- Tell Twig not to escape at all for this text template */
+
+        $twig = craft()->templates->getTwig();
+        $escaper = $twig->getExtension('escaper');
+        $escaper->setDefaultStrategy(false);
 
         if ($templatePath)
         {
@@ -36,6 +42,43 @@ class SeomaticController extends BaseController
             craft()->path->setTemplatesPath($oldPath);
         }
     } /* -- actionRenderHumans */
+
+/* --------------------------------------------------------------------------------
+    Render the robots.txt template
+-------------------------------------------------------------------------------- */
+
+    public function actionRenderRobots(array $variables = array())
+    {
+        $templatePath = '';
+        $locale = '';
+        if (!$locale)
+            $locale = craft()->language;
+        $metaVars = craft()->seomatic->getGlobals('', $locale);
+
+/* -- Tell Twig not to escape at all for this text template */
+
+        $twig = craft()->templates->getTwig();
+        $escaper = $twig->getExtension('escaper');
+        $escaper->setDefaultStrategy(false);
+
+        if ($templatePath)
+        {
+            $htmlText = craft()->templates->render($templatePath);
+        }
+        else
+        {
+            $oldPath = craft()->path->getTemplatesPath();
+            $newPath = craft()->path->getPluginsPath().'seomatic/templates';
+            craft()->path->setTemplatesPath($newPath);
+
+/* -- Render the core template */
+
+            $templateName = '_robots';
+            $this->renderTemplate($templateName, $metaVars);
+
+            craft()->path->setTemplatesPath($oldPath);
+        }
+    } /* -- actionRenderRobots */
 
 /* --------------------------------------------------------------------------------
     Edit the SiteMeta record
@@ -100,6 +143,8 @@ class SeomaticController extends BaseController
         else
             $locale = craft()->language;
         $variables['identity'] = craft()->seomatic->getIdentity($locale);
+
+/* -- LocalBusiness owner fields https://schema.org/LocalBusiness */
 
         // Whether any assets sources exist
         $sources = craft()->assets->findFolders();
@@ -414,6 +459,8 @@ class SeomaticController extends BaseController
         $record->siteOpenGraphType = craft()->request->getPost('siteOpenGraphType', $record->siteOpenGraphType);
         $record->siteRobots = craft()->request->getPost('siteRobots', $record->siteRobots);
 
+        $record->siteRobotsTxt = craft()->request->getPost('siteRobotsTxt', $record->siteRobotsTxt);
+
         $record->siteSeoImageId = craft()->request->getPost('siteSeoImageId', $record->siteSeoImageId);
         $assetId = (!empty($record->siteSeoImageId) ? $record->siteSeoImageId[0] : null);
         $record->siteSeoImageId = $assetId;
@@ -458,13 +505,22 @@ class SeomaticController extends BaseController
 /* -- Set the Identity attributes, defaulting to the existing values for whatever is missing from the post data */
 
         $record->googleSiteVerification = craft()->request->getPost('googleSiteVerification', $record->googleSiteVerification);
+        $record->googleAnalyticsUID = craft()->request->getPost('googleAnalyticsUID', $record->googleAnalyticsUID);
+        $record->googleAnalyticsSendPageview = craft()->request->getPost('googleAnalyticsSendPageview', $record->googleAnalyticsSendPageview);
+        $record->googleAnalyticsAdvertising = craft()->request->getPost('googleAnalyticsAdvertising', $record->googleAnalyticsAdvertising);
+        $record->googleAnalyticsEcommerce = craft()->request->getPost('googleAnalyticsEcommerce', $record->googleAnalyticsEcommerce);
+        $record->googleAnalyticsEEcommerce = craft()->request->getPost('googleAnalyticsEEcommerce', $record->googleAnalyticsEEcommerce);
+        $record->googleAnalyticsLinkAttribution = craft()->request->getPost('googleAnalyticsLinkAttribution', $record->googleAnalyticsLinkAttribution);
+        $record->googleAnalyticsLinker = craft()->request->getPost('googleAnalyticsLinker', $record->googleAnalyticsLinker);
         $record->siteOwnerType = craft()->request->getPost('siteOwnerType', $record->siteOwnerType);
+        $record->siteOwnerSubType = craft()->request->getPost('siteOwnerSubType', $record->siteOwnerSubType);
+        $record->siteOwnerSpecificType = craft()->request->getPost('siteOwnerSpecificType', $record->siteOwnerSpecificType);
 
 /* -- Generic owner fields */
 
         $record->genericOwnerName = craft()->request->getPost('genericOwnerName', $record->genericOwnerName);
         $record->genericOwnerAlternateName = craft()->request->getPost('genericOwnerAlternateName', $record->genericOwnerAlternateName);
-        $record->genericOwnerDescription = craft()->request->getPost('genericOwnerDescription', $record->genericOwnerDescription);
+        $record->genericOwnerDescription = craft()->seomatic->truncateStringOnWord(craft()->request->getPost('genericOwnerDescription', $record->genericOwnerDescription), 1024);
         $record->genericOwnerUrl = craft()->request->getPost('genericOwnerUrl', $record->genericOwnerUrl);
         $record->genericOwnerTelephone = craft()->request->getPost('genericOwnerTelephone', $record->genericOwnerTelephone);
         $record->genericOwnerEmail = craft()->request->getPost('genericOwnerEmail', $record->genericOwnerEmail);
@@ -488,6 +544,12 @@ class SeomaticController extends BaseController
         $record->personOwnerGender = craft()->request->getPost('personOwnerGender', $record->personOwnerGender);
         $record->personOwnerBirthPlace = craft()->request->getPost('personOwnerBirthPlace', $record->personOwnerBirthPlace);
 
+/* -- LocalBusiness owner fields https://schema.org/LocalBusiness */
+
+        $hours = craft()->request->getPost('localBusinessOwnerOpeningHours', $record->localBusinessOwnerOpeningHours);
+        craft()->seomatic->convertTimes($hours, craft()->getTimeZone());
+        $record->localBusinessOwnerOpeningHours = $hours;
+
 /* -- Corporation owner fields http://schema.org/Corporation */
 
         $record->corporationOwnerTickerSymbol = craft()->request->getPost('corporationOwnerTickerSymbol', $record->corporationOwnerTickerSymbol);
@@ -495,6 +557,8 @@ class SeomaticController extends BaseController
 /* -- Restaurant owner fields https://schema.org/Restaurant */
 
         $record->restaurantOwnerServesCuisine = craft()->request->getPost('restaurantOwnerServesCuisine', $record->restaurantOwnerServesCuisine);
+        $record->restaurantOwnerMenuUrl = craft()->request->getPost('restaurantOwnerMenuUrl', $record->restaurantOwnerMenuUrl);
+        $record->restaurantOwnerReservationsUrl = craft()->request->getPost('restaurantOwnerReservationsUrl', $record->restaurantOwnerReservationsUrl);
 
         $record->genericOwnerImageId = craft()->request->getPost('genericOwnerImageId', $record->genericOwnerImageId);
         $assetId = (!empty($record->genericOwnerImageId) ? $record->genericOwnerImageId[0] : null);
@@ -545,8 +609,10 @@ class SeomaticController extends BaseController
         $record->linkedInHandle = craft()->request->getPost('linkedInHandle', $record->linkedInHandle);
         $record->googlePlusHandle = craft()->request->getPost('googlePlusHandle', $record->googlePlusHandle);
         $record->youtubeHandle = craft()->request->getPost('youtubeHandle', $record->youtubeHandle);
+        $record->youtubeChannelHandle = craft()->request->getPost('youtubeChannelHandle', $record->youtubeChannelHandle);
         $record->instagramHandle = craft()->request->getPost('instagramHandle', $record->instagramHandle);
         $record->pinterestHandle = craft()->request->getPost('pinterestHandle', $record->pinterestHandle);
+        $record->githubHandle = craft()->request->getPost('githubHandle', $record->githubHandle);
 
         if ($record->save())
         {
@@ -589,12 +655,14 @@ class SeomaticController extends BaseController
 
         $record->googleSiteVerification = craft()->request->getPost('googleSiteVerification', $record->googleSiteVerification);
         $record->siteCreatorType = craft()->request->getPost('siteCreatorType', $record->siteCreatorType);
+        $record->siteCreatorSubType = craft()->request->getPost('siteCreatorSubType', $record->siteCreatorSubType);
+        $record->siteCreatorSpecificType = craft()->request->getPost('siteCreatorSpecificType', $record->siteCreatorSpecificType);
 
 /* -- Generic Creator fields */
 
         $record->genericCreatorName = craft()->request->getPost('genericCreatorName', $record->genericCreatorName);
         $record->genericCreatorAlternateName = craft()->request->getPost('genericCreatorAlternateName', $record->genericCreatorAlternateName);
-        $record->genericCreatorDescription = craft()->request->getPost('genericCreatorDescription', $record->genericCreatorDescription);
+        $record->genericCreatorDescription = craft()->seomatic->truncateStringOnWord(craft()->request->getPost('genericCreatorDescription', $record->genericCreatorDescription), 1024);
         $record->genericCreatorUrl = craft()->request->getPost('genericCreatorUrl', $record->genericCreatorUrl);
         $record->genericCreatorTelephone = craft()->request->getPost('genericCreatorTelephone', $record->genericCreatorTelephone);
         $record->genericCreatorEmail = craft()->request->getPost('genericCreatorEmail', $record->genericCreatorEmail);
@@ -621,6 +689,12 @@ class SeomaticController extends BaseController
 /* -- Corporation Creator fields http://schema.org/Corporation */
 
         $record->corporationCreatorTickerSymbol = craft()->request->getPost('corporationCreatorTickerSymbol', $record->corporationCreatorTickerSymbol);
+
+/* -- Restaurant creator fields https://schema.org/Restaurant */
+
+        $record->restaurantCreatorServesCuisine = craft()->request->getPost('restaurantCreatorServesCuisine', $record->restaurantCreatorServesCuisine);
+        $record->restaurantCreatorMenuUrl = craft()->request->getPost('restaurantCreatorMenuUrl', $record->restaurantCreatorMenuUrl);
+        $record->restaurantCreatorReservationsUrl = craft()->request->getPost('restaurantCreatorReservationsUrl', $record->restaurantCreatorReservationsUrl);
 
         $record->genericCreatorImageId = craft()->request->getPost('genericCreatorImageId', $record->genericCreatorImageId);
         $assetId = (!empty($record->genericCreatorImageId) ? $record->genericCreatorImageId[0] : null);

@@ -195,6 +195,8 @@ class SeomaticVariable
         }
         $fullUrl = $siteUrl . $forTemplate;
         $metaVars['seomaticMeta']['canonicalUrl'] = $fullUrl;
+        if (isset($metaVars['seomaticMeta']['og']))
+            $metaVars['seomaticMeta']['og']['url'] = $fullUrl;
 
         $result = craft()->seomatic->renderDisplayPreview($templateName, $metaVars);
 
@@ -254,6 +256,58 @@ class SeomaticVariable
     } /* -- renderWebsite */
 
 /* --------------------------------------------------------------------------------
+    Render the SEOmatic Place template
+-------------------------------------------------------------------------------- */
+
+    function renderPlace($elementId=null, $locale=null, $isPreview=false)
+    {
+        if (!$locale)
+            $locale = craft()->language;
+
+        if ($elementId)
+        {
+            $element = craft()->elements->getElementById($elementId, null, $locale);
+            if ($element)
+            {
+                $entryMeta = craft()->seomatic->getMetaFromElement($element);
+                if ($entryMeta)
+                    craft()->seomatic->setEntryMeta($entryMeta, $element->url);
+            }
+        }
+
+        $metaVars = craft()->seomatic->getGlobals('', $locale);
+        $result = craft()->seomatic->renderPlace($metaVars, $locale, $isPreview);
+
+        return rtrim($result);
+    } /* -- renderPlace */
+
+/* --------------------------------------------------------------------------------
+    Render the Google Analytics <script> tags
+-------------------------------------------------------------------------------- */
+
+    function renderGoogleAnalytics($elementId=null, $locale=null, $isPreview=false)
+    {
+        if (!$locale)
+            $locale = craft()->language;
+
+        if ($elementId)
+        {
+            $element = craft()->elements->getElementById($elementId, null, $locale);
+            if ($element)
+            {
+                $entryMeta = craft()->seomatic->getMetaFromElement($element);
+                if ($entryMeta)
+                    craft()->seomatic->setEntryMeta($entryMeta, $element->url);
+            }
+        }
+
+        $metaVars = craft()->seomatic->getGlobals('', $locale);
+        $result = craft()->seomatic->renderGoogleAnalytics($metaVars, $locale, $isPreview);
+
+        return rtrim($result);
+    } /* -- renderGoogleAnalytics */
+
+/* --------------------------------------------------------------------------------
     Render the SEOmatic globals for the preview
 -------------------------------------------------------------------------------- */
 
@@ -285,6 +339,8 @@ class SeomaticVariable
         }
         $fullUrl = $siteUrl . $forTemplate;
         $metaVars['seomaticMeta']['canonicalUrl'] = $fullUrl;
+        if (isset($metaVars['seomaticMeta']['og']))
+            $metaVars['seomaticMeta']['og']['url'] = $fullUrl;
 
 /* -- No need to expose the locale */
 
@@ -319,6 +375,28 @@ class SeomaticVariable
 
         return $result;
     } /* -- renderHumansTemplate */
+
+/* --------------------------------------------------------------------------------
+    Render the robots.txt template
+-------------------------------------------------------------------------------- */
+
+    public function renderRobots($isPreview=false)
+    {
+        $result = craft()->seomatic->renderRobots($isPreview);
+
+        return $result;
+    } /* -- renderRobots */
+
+/* --------------------------------------------------------------------------------
+    Render the robots.txt user-defined template
+-------------------------------------------------------------------------------- */
+
+    public function renderRobotsTemplate()
+    {
+        $result = craft()->seomatic->renderRobotsTemplate();
+
+        return $result;
+    } /* -- renderRobotsTemplate */
 
 /* --------------------------------------------------------------------------------
     Get the identity record
